@@ -62,8 +62,16 @@ export class PageObject extends DurableObject {
 
   private extractTitle(): string {
     const fragment = this.ydoc.getXmlFragment("default");
-    const text = fragment.toString().replace(/<[^>]*>/g, "").trim();
-    return text.split("\n")[0] || "";
+    // TipTap の JSON や XmlFragment からテキストを抽出
+    // Yjs の fragment.toString() は単純な結合になることが多いので、
+    // ここではより確実に「最初の段落」を取得するようにする
+    const text = fragment.toString().trim();
+    
+    // 改行や段落の区切りで分割して、最初の空でない一行を取得
+    const firstLine = text.split(/[\n\r]+/)[0] || "";
+    
+    // 50文字程度で切り詰める (念のため)
+    return firstLine.substring(0, 100).trim();
   }
 
   async fetch(request: Request) {
