@@ -1,22 +1,48 @@
 import { createFileRoute, Link as RouterLink, useNavigate, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, Edit3, Link as LinkIcon, Share2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Share2, Link as LinkIcon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
 import { BracketLinkDecoration } from '../lib/BracketLinkDecoration'
+import { cn } from '../lib/utils'
 import * as Y from 'yjs'
+
+// 内部的なスラグ -> ID のマッピングキャッシュ
+// これにより URL を汚さずにスラグ変更を追いかけられる
+const slugIdMap = new Map<string, string>()
 
 export const Route = createFileRoute('/$slug')({
   loader: async ({ params }) => {
+    // 1. すでにこのスラグに対応する ID を知っている場合は、ID でフェッチ
+    const knownId = slugIdMap.get(params.slug)
+    if (knownId) {
+      try {
+        const res = await fetch(`/api/pages/id/${knownId}`)
+        if (res.ok) return { page: await res.json(), slug: params.slug }
+      } catch (e) {}
+    }
+
+    // 2. なければスラグでフェッチ
+    if (params.slug === 'new') {
+      const res = await fetch('/api/pages', { method: 'POST' })
+      if (res.ok) {
+        const page = await res.json()
+        slugIdMap.set(params.slug, page.id)
+        return { page, slug: 'new' }
+      }
+    }
+
     try {
       const res = await fetch(`/api/pages/${params.slug}`)
-      if (res.status === 404) return { page: null, slug: params.slug }
-      const data = await res.json()
-      return { page: data, slug: params.slug }
-    } catch (e) {
-      return { page: null, slug: params.slug }
-    }
+      if (res.ok) {
+        const page = await res.json()
+        slugIdMap.set(params.slug, page.id)
+        return { page, slug: params.slug }
+      }
+    } catch (e) {}
+    
+    return { page: null, slug: params.slug }
   },
   component: PageComponent,
 })
@@ -24,40 +50,12 @@ export const Route = createFileRoute('/$slug')({
 function PageComponent() {
   const { page, slug } = Route.useLoaderData()
   const navigate = useNavigate()
-  const router = useRouter()
-  const [title, setTitle] = useState(page?.title || '')
-  const [isSaving, setIsSaving] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
 
   const [ydoc] = useState(() => new Y.Doc())
   const wsRef = useRef<WebSocket | null>(null)
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ history: false }),
-      Collaboration.configure({
-        document: ydoc,
-      }),
-      BracketLinkDecoration,
-    ],
-    editorProps: {
-      attributes: {
-        class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px]',
-      },
-      handleClick: (view, pos, event) => {
-        // Decoration から href を取得して遷移する
-        const target = event.target as HTMLElement
-        const href = target.getAttribute('data-href') || target.parentElement?.getAttribute('data-href')
-        
-        if (href) {
-          event.preventDefault()
-          navigate({ to: '/$slug', params: { slug: href } })
-          return true
-        }
-        return false
-      },
-    },
-  }, [slug])
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSlugRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!page?.id) return
@@ -71,6 +69,21 @@ function PageComponent() {
     const onOpen = () => setIsConnected(true)
     const onClose = () => setIsConnected(false)
     const onMessage = (event: MessageEvent) => {
+      if (typeof event.data === 'string') {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === 'SYNC_COMPLETE' && pendingSlugRef.current) {
+            const newSlug = pendingSlugRef.current
+            pendingSlugRef.current = null
+            
+            // 新しいスラグでもこの ID を使えるようにマッピングを更新
+            slugIdMap.set(newSlug, page.id)
+            
+            navigate({ to: '/$slug', params: { slug: newSlug }, replace: true })
+          }
+        } catch (e) {}
+        return
+      }
       Y.applyUpdate(ydoc, new Uint8Array(event.data))
     }
 
@@ -93,76 +106,76 @@ function PageComponent() {
       ws.close()
       ydoc.off('update', onDocUpdate)
       ydoc.destroy()
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [page?.id, ydoc])
 
-  const handleTitleChange = (newTitle: string) => {
-    setTitle(newTitle)
-  }
-
-  const handleSaveTitle = async (finalTitle: string) => {
-    if (!finalTitle || (page && finalTitle === page.title)) return
-    
-    setIsSaving(true)
-    try {
-      const finalSlug = finalTitle.toLowerCase().replace(/\s+/g, '-')
-      const res = await fetch('/api/pages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: finalTitle, slug: finalSlug }),
-      })
-      if (res.ok) {
-        await router.invalidate()
-        if (finalSlug !== slug) {
-          navigate({ to: '/$slug', params: { slug: finalSlug }, replace: true })
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ history: false }),
+      Collaboration.configure({ document: ydoc }),
+      BracketLinkDecoration,
+    ],
+    editorProps: {
+      attributes: {
+        class: 'prose prose-slate max-w-none focus:outline-none min-h-[600px] text-lg leading-relaxed',
+      },
+      handleClick: (view, pos, event) => {
+        const target = event.target as HTMLElement
+        const href = target.getAttribute('data-href') || target.parentElement?.getAttribute('data-href')
+        if (href) {
+          event.preventDefault()
+          navigate({ to: '/$slug', params: { slug: href } })
+          return true
         }
+        return false
+      },
+    },
+    onUpdate: ({ editor }) => {
+      const text = editor.getText().trim()
+      const firstLine = text.split(/[\n\r]+/)[0] || ""
+      if (!firstLine) return
+
+      const newSlug = firstLine.toLowerCase().replace(/\s+/g, '-').substring(0, 50)
+      if (newSlug && newSlug !== slug) {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(() => {
+          pendingSlugRef.current = newSlug
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'SYNC' }))
+          }
+        }, 1500)
       }
-    } catch (e) {
-      console.error('Save failed', e)
-    } finally {
-      setIsSaving(false)
     }
-  }
+  }, [slug, page?.id])
+
+  if (!page) return <div className="p-8 text-slate-400 italic">Loading page...</div>
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex items-center justify-between">
         <RouterLink to="/" className="text-slate-400 hover:text-slate-600 transition-colors">
           <ArrowLeft size={20} />
         </RouterLink>
         <div className="flex items-center gap-4">
-          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
-            isConnected ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
-          }`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+          <div className={cn(
+            "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium",
+            isConnected ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
+          )}>
+            <div className={cn(
+              "w-1.5 h-1.5 rounded-full",
+              isConnected ? "bg-emerald-500" : "bg-slate-400"
+            )} />
             {isConnected ? 'Live' : 'Offline'}
           </div>
-          <div className="flex items-center gap-2">
-            {isSaving && <Loader2 size={18} className="animate-spin text-indigo-500" />}
-            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-              <Edit3 size={20} />
-            </button>
-            <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
-              <Share2 size={20} />
-            </button>
-          </div>
+          <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
+            <Share2 size={20} />
+          </button>
         </div>
       </div>
 
-      <article>
-        <input
-          type="text"
-          value={title}
-          placeholder="New Page Title..."
-          onChange={(e) => handleTitleChange(e.target.value)}
-          onBlur={(e) => handleSaveTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle((e.target as HTMLInputElement).value)}
-          className="w-full text-5xl font-black text-slate-900 mb-8 tracking-tight bg-transparent border-none outline-none placeholder:text-slate-200"
-        />
-        
-        <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
-          <EditorContent editor={editor} />
-        </div>
+      <article className="bg-white p-10 md:p-16 rounded-3xl shadow-sm border border-slate-200 min-h-[800px]">
+        <EditorContent editor={editor} />
       </article>
 
       <section className="pt-12 border-t border-slate-200">

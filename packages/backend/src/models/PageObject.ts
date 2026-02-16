@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { drizzle } from "drizzle-orm/d1";
 import { pages } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { extractTextFromYDoc } from "../lib/parser";
 
 type Bindings = {
   DB: D1Database;
@@ -22,62 +23,54 @@ export class PageObject extends DurableObject {
 
     this.ctx.blockConcurrencyWhile(async () => {
       const saved = await this.ctx.storage.get<Uint8Array>("ydoc");
-      if (saved) {
-        Y.applyUpdate(this.ydoc, saved);
-      }
-      
-      // ID をストレージから復元するか、コンテキストから取得して保存しておく
+      if (saved) Y.applyUpdate(this.ydoc, saved);
       const storedId = await this.ctx.storage.get<string>("pageId");
-      if (storedId) {
-        this.pageId = storedId;
-      }
+      if (storedId) this.pageId = storedId;
     });
 
     this.ydoc.on("update", () => {
       const state = Y.encodeStateAsUpdate(this.ydoc);
       this.ctx.storage.put("ydoc", state);
+      // 通常の遅延同期
       this.ctx.storage.setAlarm(Date.now() + 60000);
     });
   }
 
-  async alarm() {
+  // 強制同期メソッド
+  async syncToD1() {
     if (!this.pageId) return;
-
     const db = drizzle(this.env.DB);
     const title = this.extractTitle();
-    
-    if (!title) return;
+    if (!title || title === "Untitled") return;
+
+    let slug = title.toLowerCase().replace(/\s+/g, '-');
+    if (slug === 'new') slug = 'new-page';
 
     try {
       await db
         .update(pages)
-        .set({ title, updatedAt: new Date() })
+        .set({ title, slug, updatedAt: new Date() })
         .where(eq(pages.id, this.pageId))
         .execute();
       console.log(`Synced D1 for ${this.pageId}: ${title}`);
     } catch (e) {
-      console.error(`Failed to sync to D1 for ${this.pageId}`, e);
+      console.error(`Failed to sync to D1`, e);
     }
   }
 
+  async alarm() {
+    await this.syncToD1();
+  }
+
   private extractTitle(): string {
-    const fragment = this.ydoc.getXmlFragment("default");
-    // TipTap の JSON や XmlFragment からテキストを抽出
-    // Yjs の fragment.toString() は単純な結合になることが多いので、
-    // ここではより確実に「最初の段落」を取得するようにする
-    const text = fragment.toString().trim();
-    
-    // 改行や段落の区切りで分割して、最初の空でない一行を取得
-    const firstLine = text.split(/[\n\r]+/)[0] || "";
-    
-    // 50文字程度で切り詰める (念のため)
+    const text = extractTextFromYDoc(this.ydoc);
+    const firstLine = text.trim().split(/[\n\r]+/)[0] || "";
     return firstLine.substring(0, 100).trim();
   }
 
   async fetch(request: Request) {
     const url = new URL(request.url);
     const idFromUrl = url.pathname.split("/").pop();
-    
     if (idFromUrl && !this.pageId) {
       this.pageId = idFromUrl;
       this.ctx.storage.put("pageId", idFromUrl);
@@ -91,23 +84,29 @@ export class PageObject extends DurableObject {
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-
     await this.handleSession(server);
-
-    return new Response(null, {
-      status: 101,
-      webSocket: client,
-    });
+    return new Response(null, { status: 101, webSocket: client });
   }
 
   private async handleSession(ws: WebSocket) {
     (ws as any).accept();
     this.sessions.add(ws);
-
     const initialUpdate = Y.encodeStateAsUpdate(this.ydoc);
     ws.send(initialUpdate);
 
-    ws.addEventListener("message", (msg) => {
+    ws.addEventListener("message", async (msg) => {
+      // JSON メッセージ（制御用）かバイナリ（Yjs）かを判定
+      if (typeof msg.data === "string") {
+        try {
+          const data = JSON.parse(msg.data);
+          if (data.type === "SYNC") {
+            await this.syncToD1();
+            ws.send(JSON.stringify({ type: "SYNC_COMPLETE" }));
+          }
+        } catch (e) {}
+        return;
+      }
+
       try {
         const update = new Uint8Array(msg.data as ArrayBuffer);
         Y.applyUpdate(this.ydoc, update);

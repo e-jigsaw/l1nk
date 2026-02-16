@@ -36,9 +36,11 @@ function Index() {
           Recently Updated
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pages.map((page: any) => (
-            <Link
-              key={page.id}
+          {pages
+            .filter((page: any) => page.slug !== 'new') // 'new' は除外
+            .map((page: any) => (
+              <Link
+                key={page.id}
               to="/$slug"
               params={{ slug: page.slug }}
               className="group bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all"

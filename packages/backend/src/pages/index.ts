@@ -11,89 +11,61 @@ type Bindings = {
 
 export const pagesApp = new Hono<{ Bindings: Bindings }>()
 
-// ページ一覧取得 (最新の更新順)
 pagesApp.get('/', async (c) => {
   const db = drizzle(c.env.DB)
   try {
-    const allPages = await db
-      .select()
-      .from(pages)
-      .orderBy(desc(pages.updatedAt))
-      .limit(50)
-      .all()
+    const allPages = await db.select().from(pages).orderBy(desc(pages.updatedAt)).limit(50).all()
     return c.json(allPages)
   } catch (e) {
-    return c.json({ error: 'Failed to fetch pages', details: String(e) }, 500)
+    return c.json({ error: 'Failed to fetch pages' }, 500)
   }
 })
 
-// ページ詳細取得 (スラグ指定)
 pagesApp.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
   const db = drizzle(c.env.DB)
   try {
-    const page = await db
-      .select()
-      .from(pages)
-      .where(eq(pages.slug, slug))
-      .get()
-    
-    if (!page) {
-      return c.json({ error: 'Page not found' }, 404)
-    }
-    
+    const page = await db.select().from(pages).where(eq(pages.slug, slug)).get()
+    if (!page) return c.json({ error: 'Page not found' }, 404)
     return c.json(page)
   } catch (e) {
-    return c.json({ error: 'Database error', details: String(e) }, 500)
+    return c.json({ error: 'Database error' }, 500)
   }
 })
 
-// ページの作成またはタイトル更新 (Upsert)
-const savePageSchema = z.object({
-  slug: z.string().min(1),
-  title: z.string().min(1),
+pagesApp.get('/id/:id', async (c) => {
+  const id = c.req.param('id')
+  const db = drizzle(c.env.DB)
+  try {
+    const page = await db.select().from(pages).where(eq(pages.id, id)).get()
+    if (!page) return c.json({ error: 'Page not found' }, 404)
+    return c.json(page)
+  } catch (e) {
+    return c.json({ error: 'Database error' }, 500)
+  }
 })
 
-pagesApp.post('/', zValidator('json', savePageSchema), async (c) => {
-  const { slug, title } = c.req.valid('json')
+// 新規ページ作成 (空の POST で OK)
+pagesApp.post('/', async (c) => {
   const db = drizzle(c.env.DB)
+  const id = crypto.randomUUID()
   const now = new Date()
-
+  
   try {
-    // 既存のページがあるか確認
-    const existing = await db
-      .select()
-      .from(pages)
-      .where(eq(pages.slug, slug))
+    const inserted = await db
+      .insert(pages)
+      .values({
+        id,
+        slug: id, // 最初は ID をそのままスラグにする
+        title: 'Untitled',
+        createdAt: now,
+        updatedAt: now,
+        views: 0
+      })
+      .returning()
       .get()
-
-    if (existing) {
-      // 更新
-      const updated = await db
-        .update(pages)
-        .set({ title, updatedAt: now })
-        .where(eq(pages.id, existing.id))
-        .returning()
-        .get()
-      return c.json(updated)
-    } else {
-      // 新規作成
-      const id = crypto.randomUUID()
-      const inserted = await db
-        .insert(pages)
-        .values({
-          id,
-          slug,
-          title,
-          createdAt: now,
-          updatedAt: now,
-          views: 0
-        })
-        .returning()
-        .get()
-      return c.json(inserted, 201)
-    }
+    return c.json(inserted, 201)
   } catch (e) {
-    return c.json({ error: 'Failed to save page', details: String(e) }, 500)
+    return c.json({ error: 'Failed to create page' }, 500)
   }
 })
