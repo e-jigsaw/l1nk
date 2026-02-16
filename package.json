@@ -4,10 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "concurrently -n \"back,front\" -c \"cyan,magenta\" \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.20.0"
+  "packageManager": "pnpm@10.20.0",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }
