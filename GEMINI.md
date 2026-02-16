@@ -9,7 +9,8 @@ Cloudflare のエッジコンピューティングスタックをフル活用し
 
 - `packages/frontend`: Vite + React + Tailwind CSS によるフロントエンドアプリケーション。
 - `packages/backend`: Hono + Cloudflare Workers による API バックエンド。D1, KV, Durable Objects を利用。
-- `docs/`: アーキテクチャ、仕様、認証フローなどのドキュメント。
+- `docs/current/`: アーキテクチャ、仕様、認証フロー、開発規約などの現状のドキュメント。
+- `docs/plan/`: 今後のロードマップや開発プラン。
 
 ## 技術スタック
 
