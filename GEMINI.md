@@ -44,11 +44,13 @@ pnpm install
 ### 開発コマンド
 
 **バックエンド (packages/backend)**
+
 - `pnpm --filter backend dev`: ローカル開発サーバー (wrangler) の起動。
 - `pnpm --filter backend deploy`: Cloudflare Workers へのデプロイ。
 - `pnpm --filter backend cf-typegen`: Cloudflare Bindings の型定義生成。
 
 **フロントエンド (packages/frontend)**
+
 - `pnpm --filter frontend dev`: Vite 開発サーバーの起動。
 - `pnpm --filter frontend build`: ビルドの実行。
 
@@ -61,14 +63,15 @@ pnpm install
 
 ## 開発規約・設計方針
 
+- **コメント**: コードコメントは最小限に留める。自明な処理には書かず、複雑なロジックや特定の設計判断（なぜそうしたか）が必要な箇所にのみ記述する。
 - **エッジファースト**: Cloudflare Workers の制限（Node.js API の一部が使えない等）を考慮し、Web Standard API を優先的に使用する。
 - **データ同期**:
-    - **Source of Truth**: ページの内容は Durable Objects 内の Yjs ドキュメントが正。
-    - **検索・リンク用**: Durable Objects から D1 にデータが非同期（Debounced）で同期され、一覧表示や 2-hop link の計算に使用される。
-- **認証**: 
-    - Google / GitHub OAuth を使用。
-    - セッション ID を KV に保存し、HttpOnly Cookie で管理する。
-- **ディレクトリ構成**: 
-    - `packages/backend/src/db/schema.ts` に Drizzle のスキーマ定義。
-    - `packages/backend/src/auth/` に認証ロジック。
-    - `packages/backend/src/pages/` に Wiki ページの API ロジック。
+  - **Source of Truth**: ページの内容は Durable Objects 内の Yjs ドキュメントが正。
+  - **検索・リンク用**: Durable Objects から D1 にデータが非同期（Debounced）で同期され、一覧表示や 2-hop link の計算に使用される。
+- **認証**:
+  - Google / GitHub OAuth を使用。
+  - セッション ID を KV に保存し、HttpOnly Cookie で管理する。
+- **ディレクトリ構成**:
+  - `packages/backend/src/db/schema.ts` に Drizzle のスキーマ定義。
+  - `packages/backend/src/auth/` に認証ロジック。
+  - `packages/backend/src/pages/` に Wiki ページの API ロジック。

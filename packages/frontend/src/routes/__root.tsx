@@ -3,11 +3,28 @@ import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { Home, Search, Plus, Hash } from 'lucide-react'
 
 export const Route = createRootRoute({
+  loader: async () => {
+    try {
+      const res = await fetch('/api/pages')
+      if (res.ok) return { recentPages: await res.json() }
+      return { recentPages: [] }
+    } catch (e) {
+      return { recentPages: [] }
+    }
+  },
   component: RootComponent,
 })
 
 function RootComponent() {
+  const { recentPages } = Route.useLoaderData()
   const navigate = useNavigate()
+  
+  // 型定義 (簡易的)
+  interface Page {
+    id: string
+    slug: string
+    title: string
+  }
 
   const handleCreatePage = () => {
     const tempSlug = `untitled-${Math.random().toString(36).slice(2, 7)}`
@@ -46,19 +63,21 @@ function RootComponent() {
           <div className="pt-4 pb-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Recent Pages
           </div>
-          {/* 暫定的なリスト。後で API から取得するようにする */}
-          <div className="space-y-1">
-            {['Architecture', 'Setup-Guide', 'Release-Notes'].map((slug) => (
+          <div className="space-y-1 overflow-y-auto max-h-[300px]">
+            {recentPages.map((page: Page) => (
               <Link
-                key={slug}
+                key={page.id}
                 to="/$slug"
-                params={{ slug }}
+                params={{ slug: page.slug }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm"
               >
                 <Hash size={14} className="text-slate-500" />
-                <span className="truncate">{slug}</span>
+                <span className="truncate">{page.title}</span>
               </Link>
             ))}
+            {recentPages.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-600 italic">No pages yet</div>
+            )}
           </div>
         </nav>
         

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Edit3, Link as LinkIcon, Share2, Loader2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
@@ -19,6 +19,7 @@ export const Route = createFileRoute('/$slug')({
 function PageComponent() {
   const { page, slug } = Route.useLoaderData()
   const navigate = useNavigate()
+  const router = useRouter()
   const [title, setTitle] = useState(page?.title || '')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -33,8 +34,8 @@ function PageComponent() {
 
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle)
-    
-    // まだ保存されていないページの場合、スラグもリアルタイムに更新する
+    // リアルタイムの URL 変更を一旦停止する (フラッシングの原因になるため)
+    /*
     if (!page && newTitle.trim()) {
       const newSlug = newTitle.toLowerCase().replace(/\s+/g, '-')
       if (newSlug !== slug) {
@@ -45,6 +46,7 @@ function PageComponent() {
         })
       }
     }
+    */
   }
 
   const handleSave = async (finalTitle: string) => {
@@ -52,15 +54,20 @@ function PageComponent() {
     
     setIsSaving(true)
     try {
+      // スラグを確定させる
+      const finalSlug = finalTitle.toLowerCase().replace(/\s+/g, '-')
+
       const res = await fetch('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle, slug: slug }),
+        body: JSON.stringify({ title: finalTitle, slug: finalSlug }),
       })
       if (res.ok) {
-        // 保存成功したらリロードまたはナビゲート
-        // 本来は slug が変わる可能性もあるが、今は slug 固定で title だけ変える
-        navigate({ to: '/$slug', params: { slug }, replace: true })
+        await router.invalidate()
+        // 保存成功後に初めて、正しいスラグの URL に遷移させる
+        if (finalSlug !== slug) {
+          navigate({ to: '/$slug', params: { slug: finalSlug }, replace: true })
+        }
       }
     } catch (e) {
       console.error('Save failed', e)
