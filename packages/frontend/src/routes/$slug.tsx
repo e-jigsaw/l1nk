@@ -1,6 +1,11 @@
-import { createFileRoute, Link, useNavigate, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link as RouterLink, useNavigate, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, Edit3, Link as LinkIcon, Share2, Loader2 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Collaboration from '@tiptap/extension-collaboration'
+import { BracketLinkDecoration } from '../lib/BracketLinkDecoration'
+import * as Y from 'yjs'
 
 export const Route = createFileRoute('/$slug')({
   loader: async ({ params }) => {
@@ -22,41 +27,85 @@ function PageComponent() {
   const router = useRouter()
   const [title, setTitle] = useState(page?.title || '')
   const [isSaving, setIsSaving] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
 
-  // ページがない（新規作成）かつタイトルが初期状態なら、スラグから推測するか空にする
+  const [ydoc] = useState(() => new Y.Doc())
+  const wsRef = useRef<WebSocket | null>(null)
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ history: false }),
+      Collaboration.configure({
+        document: ydoc,
+      }),
+      BracketLinkDecoration,
+    ],
+    editorProps: {
+      attributes: {
+        class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px]',
+      },
+      handleClick: (view, pos, event) => {
+        // Decoration から href を取得して遷移する
+        const target = event.target as HTMLElement
+        const href = target.getAttribute('data-href') || target.parentElement?.getAttribute('data-href')
+        
+        if (href) {
+          event.preventDefault()
+          navigate({ to: '/$slug', params: { slug: href } })
+          return true
+        }
+        return false
+      },
+    },
+  }, [slug])
+
   useEffect(() => {
-    if (!page) {
-      setTitle(slug.startsWith('untitled-') ? '' : slug)
-    } else {
-      setTitle(page.title)
+    if (!page?.id) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//localhost:8787/api/ws/pages/${page.id}`
+    const ws = new WebSocket(wsUrl)
+    ws.binaryType = 'arraybuffer'
+    wsRef.current = ws
+
+    const onOpen = () => setIsConnected(true)
+    const onClose = () => setIsConnected(false)
+    const onMessage = (event: MessageEvent) => {
+      Y.applyUpdate(ydoc, new Uint8Array(event.data))
     }
-  }, [page, slug])
+
+    ws.addEventListener('open', onOpen)
+    ws.addEventListener('close', onClose)
+    ws.addEventListener('message', onMessage)
+
+    const onDocUpdate = (update: Uint8Array, origin: any) => {
+      if (origin !== ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(update)
+      }
+    }
+
+    ydoc.on('update', onDocUpdate)
+
+    return () => {
+      ws.removeEventListener('open', onOpen)
+      ws.removeEventListener('close', onClose)
+      ws.removeEventListener('message', onMessage)
+      ws.close()
+      ydoc.off('update', onDocUpdate)
+      ydoc.destroy()
+    }
+  }, [page?.id, ydoc])
 
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle)
-    // リアルタイムの URL 変更を一旦停止する (フラッシングの原因になるため)
-    /*
-    if (!page && newTitle.trim()) {
-      const newSlug = newTitle.toLowerCase().replace(/\s+/g, '-')
-      if (newSlug !== slug) {
-        navigate({ 
-          to: '/$slug', 
-          params: { slug: newSlug }, 
-          replace: true 
-        })
-      }
-    }
-    */
   }
 
-  const handleSave = async (finalTitle: string) => {
+  const handleSaveTitle = async (finalTitle: string) => {
     if (!finalTitle || (page && finalTitle === page.title)) return
     
     setIsSaving(true)
     try {
-      // スラグを確定させる
       const finalSlug = finalTitle.toLowerCase().replace(/\s+/g, '-')
-
       const res = await fetch('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +113,6 @@ function PageComponent() {
       })
       if (res.ok) {
         await router.invalidate()
-        // 保存成功後に初めて、正しいスラグの URL に遷移させる
         if (finalSlug !== slug) {
           navigate({ to: '/$slug', params: { slug: finalSlug }, replace: true })
         }
@@ -77,19 +125,27 @@ function PageComponent() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex items-center justify-between">
-        <Link to="/" className="text-slate-400 hover:text-slate-600 transition-colors">
+        <RouterLink to="/" className="text-slate-400 hover:text-slate-600 transition-colors">
           <ArrowLeft size={20} />
-        </Link>
-        <div className="flex items-center gap-2">
-          {isSaving && <Loader2 size={18} className="animate-spin text-indigo-500" />}
-          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-            <Edit3 size={20} />
-          </button>
-          <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
-            <Share2 size={20} />
-          </button>
+        </RouterLink>
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
+            isConnected ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
+          }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            {isConnected ? 'Live' : 'Offline'}
+          </div>
+          <div className="flex items-center gap-2">
+            {isSaving && <Loader2 size={18} className="animate-spin text-indigo-500" />}
+            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+              <Edit3 size={20} />
+            </button>
+            <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
+              <Share2 size={20} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -99,28 +155,16 @@ function PageComponent() {
           value={title}
           placeholder="New Page Title..."
           onChange={(e) => handleTitleChange(e.target.value)}
-          onBlur={(e) => handleSave(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSave((e.target as HTMLInputElement).value)}
+          onBlur={(e) => handleSaveTitle(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle((e.target as HTMLInputElement).value)}
           className="w-full text-5xl font-black text-slate-900 mb-8 tracking-tight bg-transparent border-none outline-none placeholder:text-slate-200"
         />
         
-        <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 min-h-[500px] prose prose-slate max-w-none">
-          {page ? (
-            <p className="text-xl text-slate-600 leading-relaxed">
-              これは <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">[{title}]</span> に関する知識のページだ。
-            </p>
-          ) : (
-            <p className="text-xl text-slate-400 italic leading-relaxed">
-              タイトルを入力して確定（Enter またはフォーカスを外す）するとページが作成されるよ。
-            </p>
-          )}
-          <p className="mt-4 text-slate-500 italic">
-            (ここに Yjs によるリアルタイム共同編集エディタが統合される予定)
-          </p>
+        <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
+          <EditorContent editor={editor} />
         </div>
       </article>
 
-      {/* Related Pages Section (Placeholder) */}
       <section className="pt-12 border-t border-slate-200">
         <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
           <LinkIcon size={14} />

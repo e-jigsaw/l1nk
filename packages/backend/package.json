@@ -12,6 +12,8 @@
     "drizzle-kit": "^0.31.8",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.5",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.29",
     "zod": "^4.3.6"
   },
   "devDependencies": {

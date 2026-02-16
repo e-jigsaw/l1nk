@@ -15,6 +15,22 @@
       "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PAGE_OBJECT",
+        "class_name": "PageObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": [
+        "PageObject"
+      ]
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
