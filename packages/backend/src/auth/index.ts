@@ -79,7 +79,11 @@ auth.get('/callback/google', async (c) => {
 
     setCookie(c, "l1nk_session", sessionId, { path: "/", secure: true, httpOnly: true, maxAge: 60 * 60 * 24 * 30, sameSite: "Lax" })
 
-    return c.redirect("/")
+    // 開発時はフロントエンド (5173) へ戻す。
+    // 本番環境なら同じドメインなので "/" でOKだが、
+    // REDIRECT_URI_BASE とは別に FRONTEND_URL を持っておくのが確実。
+    const frontendUrl = c.env.FRONTEND_URL || "http://localhost:5173";
+    return c.redirect(frontendUrl)
   } catch (e) {
     console.error(e)
     return c.text("Authentication failed", 500)

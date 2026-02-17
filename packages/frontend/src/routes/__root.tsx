@@ -1,13 +1,14 @@
 import { createRootRoute, Link, Outlet, useNavigate, useRouter } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
-import { Home, Search, Plus, Hash, LogIn, LogOut, User } from 'lucide-react'
+import { Home, Search, Plus, Hash, LogIn, LogOut, User, Zap } from 'lucide-react'
+import { cn } from '../lib/utils'
 
 export const Route = createRootRoute({
   loader: async () => {
     try {
       const [pagesRes, authRes] = await Promise.all([
-        fetch('/api/pages').catch(e => { console.error('Pages fetch error:', e); return null; }),
-        fetch('/auth/me').catch(e => { console.error('Auth fetch error:', e); return null; })
+        fetch('/api/pages').catch(() => null),
+        fetch('/auth/me').catch(() => null)
       ])
       
       const recentPages = (pagesRes && pagesRes.ok) ? await pagesRes.json() : []
@@ -15,7 +16,6 @@ export const Route = createRootRoute({
       
       return { recentPages, user: authData.user }
     } catch (e) {
-      console.error('Root loader failed:', e)
       return { recentPages: [], user: null }
     }
   },
@@ -38,8 +38,8 @@ function RootComponent() {
   }
 
   const handleLogin = () => {
-    // 開発時は localhost:8787 へ直接飛ばす
-    window.location.href = 'http://localhost:8787/auth/login/google'
+    // 本番環境（Pages の _redirects）経由でバックエンドに飛ばす
+    window.location.href = '/auth/login/google'
   }
 
   const handleLogout = async () => {
@@ -50,6 +50,44 @@ function RootComponent() {
     }
   }
 
+  // 未ログイン時の専用画面
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-900 p-6">
+        <div className="max-w-md w-full space-y-8 text-center">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+              <Zap size={32} />
+            </div>
+          </div>
+          <div>
+            <h1 className="text-4xl font-black tracking-tight">l1nk</h1>
+            <p className="mt-3 text-slate-500 text-lg">
+              Knowledge networking, simplified.
+            </p>
+          </div>
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            <p className="text-slate-600 mb-6">
+              Sign in to start creating and sharing your personal knowledge base.
+            </p>
+            <button 
+              onClick={handleLogin}
+              className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-all font-bold text-lg shadow-md hover:shadow-lg active:scale-95"
+            >
+              <LogIn size={24} />
+              <span>Login with Google</span>
+            </button>
+          </div>
+          <div className="text-xs text-slate-400">
+            &copy; 2026 l1nk project. Open source and lightweight.
+          </div>
+        </div>
+        <TanStackRouterDevtools />
+      </div>
+    )
+  }
+
+  // ログイン済みのメインレイアウト
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0">
@@ -97,33 +135,23 @@ function RootComponent() {
         </nav>
         
         <div className="p-4 border-t border-slate-800">
-          {user ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2 px-3 py-2 text-sm text-white">
-                {user.photoUrl ? (
-                  <img src={user.photoUrl} alt="" className="w-6 h-6 rounded-full" />
-                ) : (
-                  <User size={18} />
-                )}
-                <span className="truncate">{user.name || user.email}</span>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-red-900/30 hover:text-red-400 transition-colors text-xs"
-              >
-                <LogOut size={14} />
-                <span>Logout</span>
-              </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-white">
+              {user.photoUrl ? (
+                <img src={user.photoUrl} alt="" className="w-6 h-6 rounded-full" />
+              ) : (
+                <User size={18} />
+              )}
+              <span className="truncate">{user.name || user.email}</span>
             </div>
-          ) : (
             <button 
-              onClick={handleLogin}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-500 transition-colors text-sm font-medium"
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-red-900/30 hover:text-red-400 transition-colors text-xs"
             >
-              <LogIn size={18} />
-              <span>Login with Google</span>
+              <LogOut size={14} />
+              <span>Logout</span>
             </button>
-          )}
+          </div>
         </div>
       </aside>
 

@@ -61,7 +61,9 @@ function PageComponent() {
     if (!page?.id) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//localhost:8787/api/ws/pages/${page.id}`
+    const isDev = window.location.hostname === 'localhost'
+    const wsHost = isDev ? 'localhost:8787' : window.location.host
+    const wsUrl = `${protocol}//${wsHost}/api/ws/pages/${page.id}`
     const ws = new WebSocket(wsUrl)
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
