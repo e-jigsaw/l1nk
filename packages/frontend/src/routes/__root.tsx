@@ -1,6 +1,7 @@
 import { createRootRoute, Link, Outlet, useNavigate, useRouter } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { Home, Search, Plus, Hash, LogIn, LogOut, User, Zap } from 'lucide-react'
+import { cn } from '../lib/utils'
 
 export const Route = createRootRoute({
   loader: async () => {
@@ -37,7 +38,6 @@ function RootComponent() {
   }
 
   const handleLogin = () => {
-    // 本番環境（Pages の _redirects）経由でバックエンドに飛ばす
     window.location.href = '/auth/login/google'
   }
 
@@ -49,7 +49,8 @@ function RootComponent() {
     }
   }
 
-  // 未ログイン時の専用画面
+  const devtools = !import.meta.env.PROD && <TanStackRouterDevtools />
+
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-900 p-6">
@@ -81,12 +82,11 @@ function RootComponent() {
             &copy; 2026 l1nk project. Open source and lightweight.
           </div>
         </div>
-        <TanStackRouterDevtools />
+        {devtools}
       </div>
     )
   }
 
-  // ログイン済みのメインレイアウト
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0">
@@ -160,7 +160,7 @@ function RootComponent() {
         </div>
       </main>
       
-      {!import.meta.env.PROD && <TanStackRouterDevtools />}
+      {devtools}
     </div>
   )
 }
