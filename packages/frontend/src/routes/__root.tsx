@@ -1,7 +1,6 @@
 import { createRootRoute, Link, Outlet, useNavigate, useRouter } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { Home, Search, Plus, Hash, LogIn, LogOut, User, Zap } from 'lucide-react'
-import { cn } from '../lib/utils'
 
 export const Route = createRootRoute({
   loader: async () => {

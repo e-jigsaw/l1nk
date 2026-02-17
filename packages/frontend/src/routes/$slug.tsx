@@ -1,4 +1,4 @@
-import { createFileRoute, Link as RouterLink, useNavigate, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Share2, Link as LinkIcon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -9,12 +9,10 @@ import { cn } from '../lib/utils'
 import * as Y from 'yjs'
 
 // 内部的なスラグ -> ID のマッピングキャッシュ
-// これにより URL を汚さずにスラグ変更を追いかけられる
 const slugIdMap = new Map<string, string>()
 
 export const Route = createFileRoute('/$slug')({
   loader: async ({ params }) => {
-    // 1. すでにこのスラグに対応する ID を知っている場合は、ID でフェッチ
     const knownId = slugIdMap.get(params.slug)
     if (knownId) {
       try {
@@ -23,7 +21,6 @@ export const Route = createFileRoute('/$slug')({
       } catch (e) {}
     }
 
-    // 2. なければスラグでフェッチ
     if (params.slug === 'new') {
       const res = await fetch('/api/pages', { method: 'POST' })
       if (res.ok) {
@@ -57,6 +54,48 @@ function PageComponent() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingSlugRef = useRef<string | null>(null)
 
+  const editor = useEditor({
+    extensions: [
+      // history: false の代わりに configure 内で false を指定
+      StarterKit.configure({ 
+        history: false 
+      }),
+      Collaboration.configure({ document: ydoc }),
+      BracketLinkDecoration,
+    ],
+    editorProps: {
+      attributes: {
+        class: 'prose prose-slate max-w-none focus:outline-none min-h-[600px] text-lg leading-relaxed',
+      },
+      handleClick: (_view, _pos, event) => {
+        const target = event.target as HTMLElement
+        const href = target.getAttribute('data-href') || target.parentElement?.getAttribute('data-href')
+        if (href) {
+          event.preventDefault()
+          navigate({ to: '/$slug', params: { slug: href } })
+          return true
+        }
+        return false
+      },
+    },
+    onUpdate: ({ editor }) => {
+      const text = editor.getText().trim()
+      const firstLine = text.split(/[\n\r]+/)[0] || ""
+      if (!firstLine) return
+
+      const newSlug = firstLine.toLowerCase().replace(/\s+/g, '-').substring(0, 50)
+      if (newSlug && newSlug !== slug) {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(() => {
+          pendingSlugRef.current = newSlug
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'SYNC' }))
+          }
+        }, 1500)
+      }
+    }
+  }, [slug, page?.id])
+
   useEffect(() => {
     if (!page?.id) return
 
@@ -77,10 +116,7 @@ function PageComponent() {
           if (data.type === 'SYNC_COMPLETE' && pendingSlugRef.current) {
             const newSlug = pendingSlugRef.current
             pendingSlugRef.current = null
-            
-            // 新しいスラグでもこの ID を使えるようにマッピングを更新
             slugIdMap.set(newSlug, page.id)
-            
             navigate({ to: '/$slug', params: { slug: newSlug }, replace: true })
           }
         } catch (e) {}
@@ -110,46 +146,7 @@ function PageComponent() {
       ydoc.destroy()
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [page?.id, ydoc])
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ history: false }),
-      Collaboration.configure({ document: ydoc }),
-      BracketLinkDecoration,
-    ],
-    editorProps: {
-      attributes: {
-        class: 'prose prose-slate max-w-none focus:outline-none min-h-[600px] text-lg leading-relaxed',
-      },
-      handleClick: (view, pos, event) => {
-        const target = event.target as HTMLElement
-        const href = target.getAttribute('data-href') || target.parentElement?.getAttribute('data-href')
-        if (href) {
-          event.preventDefault()
-          navigate({ to: '/$slug', params: { slug: href } })
-          return true
-        }
-        return false
-      },
-    },
-    onUpdate: ({ editor }) => {
-      const text = editor.getText().trim()
-      const firstLine = text.split(/[\n\r]+/)[0] || ""
-      if (!firstLine) return
-
-      const newSlug = firstLine.toLowerCase().replace(/\s+/g, '-').substring(0, 50)
-      if (newSlug && newSlug !== slug) {
-        if (timerRef.current) clearTimeout(timerRef.current)
-        timerRef.current = setTimeout(() => {
-          pendingSlugRef.current = newSlug
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'SYNC' }))
-          }
-        }, 1500)
-      }
-    }
-  }, [slug, page?.id])
+  }, [page?.id, ydoc, navigate, page.id])
 
   if (!page) return <div className="p-8 text-slate-400 italic">Loading page...</div>
 
