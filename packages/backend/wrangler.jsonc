@@ -8,9 +8,6 @@
     "directory": "../frontend/dist",
     "binding": "ASSETS",
   },
-  "vars": {
-    "REDIRECT_URI_BASE": "http://localhost:8787",
-  },
   "kv_namespaces": [
     {
       "binding": "SESSIONS",
