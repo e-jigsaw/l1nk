@@ -10,6 +10,16 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'tiptap': ['@tiptap/react', '@tiptap/pm', '@tiptap/starter-kit', '@tiptap/core'],
+          'yjs': ['yjs', 'y-protocols', 'lib0'],
+        }
+      }
+    }
+  },
   server: {
     proxy: {
       '/api': {
