@@ -13,20 +13,16 @@ type Bindings = {
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   REDIRECT_URI_BASE: string;
-  FRONTEND_URL: string;
 };
 
 export const auth = new Hono<{ Bindings: Bindings }>();
 
-const getGoogleAuth = (c: any) => {
-  const callbackUrl = `${c.env.REDIRECT_URI_BASE}/auth/callback/google`;
-  console.log('Using callback URL:', callbackUrl);
-  return new Google(
+const getGoogleAuth = (c: any) =>
+  new Google(
     c.env.GOOGLE_CLIENT_ID,
     c.env.GOOGLE_CLIENT_SECRET,
-    callbackUrl
+    `${c.env.REDIRECT_URI_BASE}/auth/callback/google`,
   );
-};
 
 auth.get("/login/google", async (c) => {
   const google = getGoogleAuth(c);
