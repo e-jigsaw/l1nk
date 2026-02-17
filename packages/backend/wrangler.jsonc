@@ -3,40 +3,36 @@
   "name": "l1nk-backend",
   "main": "src/index.ts",
   "compatibility_date": "2026-01-26",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "REDIRECT_URI_BASE": "http://localhost:8787"
+    "REDIRECT_URI_BASE": "http://localhost:8787",
   },
   "kv_namespaces": [
     {
       "binding": "SESSIONS",
-      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    }
+      "id": "c6f1bb9baf134b37a3369ad8b18ca1b0",
+    },
   ],
   "durable_objects": {
     "bindings": [
       {
         "name": "PAGE_OBJECT",
-        "class_name": "PageObject"
-      }
-    ]
+        "class_name": "PageObject",
+      },
+    ],
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": [
-        "PageObject"
-      ]
-    }
+      "new_classes": ["PageObject"],
+    },
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "l1nk-db",
-      "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "migrations_dir": "drizzle"
-    }
-  ]
+      "database_id": "f8ee6100-c6fc-4a4c-b39f-d9e3218294a3",
+      "migrations_dir": "drizzle",
+    },
+  ],
 }
