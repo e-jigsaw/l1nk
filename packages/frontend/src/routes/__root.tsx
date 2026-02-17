@@ -160,7 +160,7 @@ function RootComponent() {
         </div>
       </main>
       
-      <TanStackRouterDevtools />
+      {!import.meta.env.PROD && <TanStackRouterDevtools />}
     </div>
   )
 }
