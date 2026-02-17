@@ -1,3 +1,3 @@
-/api/*  https://l1nk-backend.あなたのユーザー名.workers.dev/api/:splat  200
-/auth/* https://l1nk-backend.あなたのユーザー名.workers.dev/auth/:splat 200
+/api/*  https://l1nk-api.jgsw.workers.dev/api/:splat  200
+/auth/* https://l1nk-api.jgsw.workers.dev/auth/:splat 200
 /*      /index.html                                              200
