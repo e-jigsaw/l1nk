@@ -1,9 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "l1nk-backend",
+  "name": "l1nk",
   "main": "src/index.ts",
   "compatibility_date": "2026-01-26",
   "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "../frontend/dist",
+    "binding": "ASSETS",
+  },
   "vars": {
     "REDIRECT_URI_BASE": "http://localhost:8787",
   },
