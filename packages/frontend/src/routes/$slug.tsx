@@ -5,19 +5,8 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
 import Text from '@tiptap/extension-text'
-import Heading from '@tiptap/extension-heading'
-import Bold from '@tiptap/extension-bold'
-import Italic from '@tiptap/extension-italic'
-import Strike from '@tiptap/extension-strike'
-import Blockquote from '@tiptap/extension-blockquote'
-import CodeBlock from '@tiptap/extension-code-block'
 import BulletList from '@tiptap/extension-bullet-list'
-import OrderedList from '@tiptap/extension-ordered-list'
 import ListItem from '@tiptap/extension-list-item'
-import HardBreak from '@tiptap/extension-hard-break'
-import HorizontalRule from '@tiptap/extension-horizontal-rule'
-import Dropcursor from '@tiptap/extension-dropcursor'
-import Gapcursor from '@tiptap/extension-gapcursor'
 import Collaboration from '@tiptap/extension-collaboration'
 import { BracketLinkDecoration } from '../lib/BracketLinkDecoration'
 import { cn } from '../lib/utils'
@@ -27,32 +16,14 @@ const slugIdMap = new Map<string, string>()
 
 export const Route = createFileRoute('/$slug')({
   loader: async ({ params }) => {
-    const knownId = slugIdMap.get(params.slug)
-    if (knownId) {
-      try {
-        const res = await fetch(`/api/pages/id/${knownId}`)
-        if (res.ok) return { page: await res.json(), slug: params.slug }
-      } catch (e) {}
-    }
-
     if (params.slug === 'new') {
       const res = await fetch('/api/pages', { method: 'POST' })
-      if (res.ok) {
-        const page = await res.json()
-        slugIdMap.set(params.slug, page.id)
-        return { page, slug: 'new' }
-      }
+      if (res.ok) return { page: await res.json(), slug: 'new' }
     }
-
     try {
       const res = await fetch(`/api/pages/${params.slug}`)
-      if (res.ok) {
-        const page = await res.json()
-        slugIdMap.set(params.slug, page.id)
-        return { page, slug: params.slug }
-      }
+      if (res.ok) return { page: await res.json(), slug: params.slug }
     } catch (e) {}
-    
     return { page: null, slug: params.slug }
   },
   component: PageComponent,
@@ -73,20 +44,8 @@ function PageComponent() {
       Document,
       Paragraph,
       Text,
-      Heading,
-      Bold,
-      Italic,
-      Strike,
-      Blockquote,
-      CodeBlock,
       BulletList,
-      OrderedList,
       ListItem,
-      HardBreak,
-      HorizontalRule,
-      Dropcursor,
-      Gapcursor,
-      // Collaboration を使うため、History 拡張は含めない
       Collaboration.configure({ document: ydoc }),
       BracketLinkDecoration,
     ],
