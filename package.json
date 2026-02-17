@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n \"back,front\" -c \"cyan,magenta\" \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "build": "pnpm --filter frontend build",
-    "publish": "pnpm build && pnpm --filter backend deploy",
+    "ship": "pnpm run build && pnpm --filter backend run deploy",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
