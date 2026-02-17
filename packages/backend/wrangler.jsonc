@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-01-26",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "REDIRECT_URI_BASE": "https://l1nk.jgsw.workers.dev",
+    "FRONTEND_URL": "https://l1nk.jgsw.workers.dev",
+  },
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,
