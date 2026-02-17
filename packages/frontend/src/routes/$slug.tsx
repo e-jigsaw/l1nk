@@ -1,14 +1,28 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link as RouterLink, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Share2, Link as LinkIcon } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
+import Document from '@tiptap/extension-document'
+import Paragraph from '@tiptap/extension-paragraph'
+import Text from '@tiptap/extension-text'
+import Heading from '@tiptap/extension-heading'
+import Bold from '@tiptap/extension-bold'
+import Italic from '@tiptap/extension-italic'
+import Strike from '@tiptap/extension-strike'
+import Blockquote from '@tiptap/extension-blockquote'
+import CodeBlock from '@tiptap/extension-code-block'
+import BulletList from '@tiptap/extension-bullet-list'
+import OrderedList from '@tiptap/extension-ordered-list'
+import ListItem from '@tiptap/extension-list-item'
+import HardBreak from '@tiptap/extension-hard-break'
+import HorizontalRule from '@tiptap/extension-horizontal-rule'
+import Dropcursor from '@tiptap/extension-dropcursor'
+import Gapcursor from '@tiptap/extension-gapcursor'
 import Collaboration from '@tiptap/extension-collaboration'
 import { BracketLinkDecoration } from '../lib/BracketLinkDecoration'
 import { cn } from '../lib/utils'
 import * as Y from 'yjs'
 
-// 内部的なスラグ -> ID のマッピングキャッシュ
 const slugIdMap = new Map<string, string>()
 
 export const Route = createFileRoute('/$slug')({
@@ -56,10 +70,23 @@ function PageComponent() {
 
   const editor = useEditor({
     extensions: [
-      // history: false の代わりに configure 内で false を指定
-      StarterKit.configure({ 
-        history: false 
-      }),
+      Document,
+      Paragraph,
+      Text,
+      Heading,
+      Bold,
+      Italic,
+      Strike,
+      Blockquote,
+      CodeBlock,
+      BulletList,
+      OrderedList,
+      ListItem,
+      HardBreak,
+      HorizontalRule,
+      Dropcursor,
+      Gapcursor,
+      // Collaboration を使うため、History 拡張は含めない
       Collaboration.configure({ document: ydoc }),
       BracketLinkDecoration,
     ],
@@ -146,7 +173,7 @@ function PageComponent() {
       ydoc.destroy()
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [page?.id, ydoc, navigate, page.id])
+  }, [page?.id, ydoc, navigate])
 
   if (!page) return <div className="p-8 text-slate-400 italic">Loading page...</div>
 
